@@ -1,0 +1,24 @@
+# Ray Serve và dependencies chính
+ray[serve]==2.31.0
+fastapi==0.115.2
+uvicorn==0.30.6
+pydantic==2.9.2
+
+# AI/ML dependencies
+vllm==0.6.1.post2
+transformers==4.44.2
+torch>=2.1.0
+torchvision>=0.16.0
+accelerate>=0.33.0
+sentence-transformers>=2.2.2
+Pillow>=9.0.0
+python-multipart
+
+
+# Utilities cho Docker
+numpy>=1.21.0
+requests>=2.25.0
+
+# Hugging Face hub client used by weights_manager.py
+huggingface_hub>=0.24.0
+

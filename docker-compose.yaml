@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  ray-serve:
+    build: .
+    container_name: ray-serve-container
+    
+    ports:
+      - "8000:8000"
+      - "8265:8265"
+      - "6379:6379"
+
+    environment:
+      - MODEL_BACKEND=vllm
+      - CUDA_VISIBLE_DEVICES=0
+      - RAY_DISABLE_IMPORT_WARNING=1
+      - HF_HOME=/home/appuser/.cache/huggingface
+      - TRANSFORMERS_CACHE=/home/appuser/.cache/transformers
+      - SENTENCE_TRANSFORMERS_HOME=/home/appuser/.cache/sentence_transformers
+      - TORCH_HOME=/home/appuser/.cache/torch
+      - HF_DATASETS_CACHE=/home/appuser/.cache/huggingface/datasets
+      - HF_MODELS_CACHE=/home/appuser/.cache/huggingface/models
+
+    volumes:
+      - ~/.cache/huggingface:/home/appuser/.cache/huggingface
+      - ~/.cache/torch:/home/appuser/.cache/torch
+      - ~/.cache/transformers:/home/appuser/.cache/transformers
+      - ~/.cache/sentence_transformers:/home/appuser/.cache/sentence_transformers
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    restart: unless-stopped
+    
+    # KHỐI HEALTHCHECK ĐÃ SỬA LỖI CÚ PHÁP
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s # Đã giảm bớt so với 180s, vì thời gian tải mô hình được tính vào thời gian khởi tạo Ray Serve
+    
+    # Đảm bảo Ray Serve được triển khai với user non-root
+    user: appuser 
+
+    command: 
+      - /bin/bash
+      - -c
+      - |
+        echo "1. Starting Ray Head Node..."
+        # Khởi động Ray Cluster Head Node ở chế độ nền. Không cần --block vì serve run sẽ chặn.
+        ray start --head --dashboard-host 0.0.0.0 --num-gpus 1 --temp-dir /tmp/ray & 
+        
+        # Tăng thời gian chờ để đảm bảo GCS của Ray sẵn sàng, đặc biệt khi dùng vLLM/GPU
+        sleep 10 
+        
+        echo "2. Deploying and Running Ray Serve Application (serve_app:app)..."
+        # Lệnh serve run sẽ kết nối với Ray Cluster đang chạy và chặn tiến trình, 
+        # giữ container hoạt động.
+        serve run serve_app:app
+    networks:
+      - ray-network
+
+networks:
+  ray-network:
+    driver: bridge
