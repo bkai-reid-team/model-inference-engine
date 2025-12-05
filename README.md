@@ -1,5 +1,4 @@
 # Ray Serve Multi-Model Docker Setup
-# Ray Serve Multi-Model — Quick Guide
 
 Minimal instructions to run the Ray Serve multi-model API.
 
@@ -129,8 +128,3 @@ curl -X POST http://localhost:8000/classification \
 curl -X POST http://localhost:8000/mobilenet/predict \
   -F "file=@image.jpg" \
   -F "task=gender"
-
-
-
-
-### Manual API Testing

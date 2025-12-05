@@ -1,4 +1,4 @@
-# Ray Serve và dependencies chính
+# Ray Serve and dependencies main
 ray[serve]==2.31.0
 fastapi==0.115.2
 uvicorn==0.30.6
@@ -15,7 +15,7 @@ Pillow>=9.0.0
 python-multipart
 
 
-# Utilities cho Docker
+# Utilities for Docker
 numpy>=1.21.0
 requests>=2.25.0
 
