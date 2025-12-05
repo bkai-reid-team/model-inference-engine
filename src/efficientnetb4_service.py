@@ -7,10 +7,10 @@ import io
 from typing import Dict, Any, List
 from weights_manager import WeightsManager
 
-# Available classification tasks (Cần phải khớp với những gì WeightsManager trả về)
+# Available classification tasks
 AVAILABLE_TASKS = ["body_volume", "feet", "gender", "glasses", "hairstyle"]
 
-# Tên class deployment
+# Deployment class name
 @serve.deployment(
     name="efficientnet_b4_classifier"
 )
@@ -18,7 +18,7 @@ class EfficientNetB4Classifier:
     def __init__(self):
         print("🔹 Loading EfficientNetB4 models...")
         
-        # Xác định thiết bị (GPU hoặc CPU)
+        # Determine device (GPU or CPU)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"⚙️ Using device: {self.device}")
         
@@ -26,7 +26,7 @@ class EfficientNetB4Classifier:
         self.labels = {}
         self.weights_manager = WeightsManager()
         
-        # Load tất cả các EfficientNetB4 weights
+        # Load all EfficientNetB4 weights
         self._load_all_models()
         
         # Preprocessing pipeline
@@ -41,7 +41,7 @@ class EfficientNetB4Classifier:
         ])
 
     def _load_all_models(self):
-        """Load tất cả các EfficientNetB4 models"""
+        """Load all EfficientNetB4 models"""
         try:
             # Get available weights
             weights_info = self.weights_manager.get_available_weights()
@@ -53,15 +53,15 @@ class EfficientNetB4Classifier:
             
             print(f"🔍 Found EfficientNetB4 tasks: {efficientnet_b4_tasks}")
             
-            # Load từng model
+            # Load each model
             for task_name in efficientnet_b4_tasks:
                 try:
                     print(f"📥 Loading EfficientNetB4 model for task: {task_name}")
                     
-                    # ✅ Xác định số lớp đúng cho từng task
+                    # ✅ Determine the correct number of classes for each task
                     num_classes = len(self._generate_labels_for_task(task_name))
                     
-                    # ✅ Tạo model với số lớp tương ứng
+                    # ✅ Create model with the corresponding number of classes
                     model = models.efficientnet_b4(weights=None, num_classes=num_classes)
                     
                     # Load state dict
@@ -70,14 +70,14 @@ class EfficientNetB4Classifier:
                         print(f"❌ Failed to load weights for task '{task_name}'")
                         continue
             
-                    # Load weights vào model
+                    # Load weights into model
                     model.load_state_dict(state_dict, strict=False)
                     
-                    # Chuyển model sang GPU/thiết bị đã chọn
-                    model.to(self.device)
+                    # Move model to GPU/selected device
+                    model = model.to(self.device)
                     model.eval()
                     
-                    # Lưu model và nhãn
+                    # Save model and labels
                     self.models[task_name] = model
                     self.labels[task_name] = self._generate_labels_for_task(task_name)
                     
@@ -106,23 +106,23 @@ class EfficientNetB4Classifier:
         elif task_name == "hairstyle":
             return ["bald", "short", "medium", "long", "horse tail"]
         else:
-            # Default labels nếu không biết task
+            # Default labels if task is unknown
             return [f"class_{i}" for i in range(2)]  # Default 2 classes
 
-    # FIX: Định nghĩa hàm predict rõ ràng mà Router đang tìm kiếm.
+    # FIX: Define the predict function explicitly that Router is looking for.
     async def predict(self, image_bytes: bytes, task: str = "gender") -> Dict[str, Any]:
         """Classify image using EfficientNetB4 for specific task"""
-        # Toàn bộ logic xử lý ảnh được chuyển từ __call__ sang đây
+        # All image processing logic moved from __call__ to here
         try:
             if task not in self.models:
                 raise HTTPException(status_code=400, detail=f"Task '{task}' not available. Available tasks: {list(self.models.keys())}")
             
-            # Load và preprocess image
+            # Load and preprocess image
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-            # Chuyển input_tensor sang thiết bị (GPU)
+            # Move input_tensor to device (GPU)
             input_tensor = self.preprocess(image).unsqueeze(0).to(self.device)
 
-            # Get model cho task
+            # Get model for task
             model = self.models[task]
             labels = self.labels[task]
 
@@ -149,18 +149,18 @@ class EfficientNetB4Classifier:
         except HTTPException:
             raise
         except Exception as e:
-            # Nâng lỗi lên HTTP 500 để client thấy
+            # Raise error as HTTP 500 so client can see
             raise HTTPException(status_code=500, detail=f"Image processing error: {str(e)}")
 
 
-    # Giữ lại __call__ nếu cần endpoint mặc định, nhưng nó không còn là predict nữa
+    # Keep __call__ if a default endpoint is needed, but it is no longer predict
     async def __call__(self, *args, **kwargs):
-        # Nếu Router gọi handle.remote() thay vì handle.predict.remote(), 
-        # Ray sẽ gọi hàm này. Ta có thể chuyển hướng nó đến predict.
+        # If Router calls handle.remote() instead of handle.predict.remote(),
+        # Ray will call this function. We can redirect it to predict.
         if len(args) >= 1 and isinstance(args[0], bytes):
             return await self.predict(*args, **kwargs)
         
-        # Hàm này không nên được gọi trực tiếp qua HTTP vì Router đã định tuyến rõ ràng.
+        # This function should not be called directly via HTTP as Router has explicit routing.
         return {"error": "Use the /predict endpoint or call the predict method."}
 
 

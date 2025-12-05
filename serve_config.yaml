@@ -1,0 +1,46 @@
+http_options:
+  host: 0.0.0.0
+  port: 8000
+
+applications:
+  - name: ray-serve-app
+    route_prefix: /
+    import_path: serve_app:app
+    
+    args:
+      deployments:
+        Router:
+          ray_actor_options:
+            num_gpus: 0
+            
+        # Embedding service
+        EmbeddingAPI:
+          ray_actor_options:
+            num_gpus: 0.1
+          autoscaling_config:
+            min_replicas: 3
+            max_replicas: 3
+            
+        # MobileNet - 3 replicas
+        MobilenetClassifier:
+          ray_actor_options:
+            num_gpus: 0.05
+          autoscaling_config:
+            min_replicas: 3
+            max_replicas: 3
+            
+        # EfficientNet B0 - 3 replicas
+        EfficientNetB0Classifier:
+          ray_actor_options:
+            num_gpus: 0.05
+          autoscaling_config:
+            min_replicas: 3
+            max_replicas: 3
+            
+        # EfficientNet B4 - 3 replicas
+        EfficientNetB4Classifier:
+          ray_actor_options:
+            num_gpus: 0.1
+          autoscaling_config:
+            min_replicas: 3
+            max_replicas: 3
