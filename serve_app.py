@@ -14,16 +14,16 @@ class TextRequest(BaseModel):
     text: str
 
 
-# Tạo FastAPI app với endpoints đơn giản
-app = FastAPI(
+# Create FastAPI app with simple endpoints
+app_fastapi = FastAPI(
     title="Ray Serve Multi-Model API",
     description="Simple endpoints for AI models",
     version="1.0.0"
 )
 
 
-@serve.deployment() 
-@serve.ingress(app)
+@serve.deployment()
+@serve.ingress(app_fastapi)
 class Router:
     def __init__(
         self,
@@ -33,19 +33,19 @@ class Router:
         efficientnet_b0_classifier_handle = None,
         efficientnet_b4_classifier_handle = None,
     ) -> None:
-        # Nhận sẵn deployment handles thông qua DAG binding
+        # Receive deployment handles through DAG binding
         self.qwen = qwen_handle
         self.embed = embedding_handle
         self.mobilenet_classifier = mobilenet_classifier_handle
         self.efficientnet_b0_classifier = efficientnet_b0_classifier_handle
         self.efficientnet_b4_classifier = efficientnet_b4_classifier_handle
 
-    @app.get("/")
+    @app_fastapi.get("/")
     async def root(self) -> Dict[str, Any]:
         return {
             "message": "Ray Serve Multi-Model API",
             "endpoints": {
-                "generation": "/generate",
+                # "generation": "/generate",
                 "embedding": "/embed", 
                 "classification": "/classification",
                 "mobilenet_v2": "/mobilenet_v2",
@@ -55,23 +55,7 @@ class Router:
             }
         }
 
-    @app.post("/generate")
-    async def generate(self, body: GenerateRequest) -> Dict[str, Any]:
-        """Text generation endpoint"""
-        if not body.prompt:
-            raise HTTPException(400, "Missing 'prompt'")
-        if self.qwen is None:
-            raise HTTPException(503, "Qwen service not available")
-            
-        # Gọi service với format phù hợp
-        result = await self.qwen.generate.remote({
-            "prompt": body.prompt,
-            "max_tokens": body.max_tokens,
-            "temperature": body.temperature
-        })
-        return result
-
-    @app.post("/embed")
+    @app_fastapi.post("/embed")
     async def embed(self, body: TextRequest) -> Dict[str, Any]:
         """Text embedding endpoint"""
         if not body.text:
@@ -82,59 +66,45 @@ class Router:
         result = await self.embed.encode.remote({"text": body.text})
         return result
 
-    @app.post("/mobilenet_v2")
+    @app_fastapi.post("/mobilenet_v2")
     async def image_classification(self, file: UploadFile) -> Dict[str, Any]:
         """Image classification endpoint using MobileNetV2"""
         if not file.content_type or not file.content_type.startswith('image/'):
             raise HTTPException(400, "File must be an image")
-        # FIX: Dùng self.mobilenet_classifier thay vì self.mobilenet
         if self.mobilenet_classifier is None: 
             raise HTTPException(503, "MobileNet service not available")
     
         image_bytes = await file.read()
-    
-        # FIX: Dùng self.mobilenet_classifier.predict.remote(file)
         result = await self.mobilenet_classifier.predict.remote(image_bytes) 
         return result
 
-    @app.post("/efficientnet_b0")
+    @app_fastapi.post("/efficientnet_b0")
     async def efficientnet_b0(self, file: UploadFile) -> Dict[str, Any]:
         """Image classification endpoint using EfficientNetB0"""
         if not file.content_type or not file.content_type.startswith('image/'):
             raise HTTPException(400, "File must be an image")
-        # Handle đã được đặt tên đúng
         if self.efficientnet_b0_classifier is None: 
             raise HTTPException(503, "EfficientNetB0 service not available")
                 
         image_bytes = await file.read()
-    
-        # FIX: Dùng self.efficientnet_b0_classifier.predict.remote(file)
         result = await self.efficientnet_b0_classifier.predict.remote(image_bytes) 
         return result
 
-    @app.post("/efficientnet_b4")
+    @app_fastapi.post("/efficientnet_b4")
     async def efficientnet_b4(self, file: UploadFile) -> Dict[str, Any]:
         """Image classification endpoint using EfficientNetB4"""
         if not file.content_type or not file.content_type.startswith('image/'):
             raise HTTPException(400, "File must be an image")
-        # Handle đã được đặt tên đúng
         if self.efficientnet_b4_classifier is None: 
             raise HTTPException(503, "EfficientNetB4 service not available")
 
         image_bytes = await file.read()
-        
-        # FIX: Dùng self.efficientnet_b4_classifier.predict.remote(file)
         result = await self.efficientnet_b4_classifier.predict.remote(image_bytes) 
         return result
 
-    @app.post("/predict")
+    @app_fastapi.post("/predict")
     async def predict(self, request: Request, file: UploadFile | None = None, model: str | None = None, deployment: str | None = None, task: str | None = None) -> Dict[str, Any]:
-        """Unified prediction endpoint routing to text or image models.
-
-        - JSON body with {prompt,...} -> Qwen
-        - JSON body with {text} -> Embedding
-        - multipart/form-data with image `file` (+ optional `model`, `task`) -> image classifiers
-        """
+        """Unified prediction endpoint routing to text or image models."""
         content_type = request.headers.get("content-type", "")
 
         # Image branch: multipart form with file
@@ -144,7 +114,6 @@ class Router:
             if not file.content_type or not file.content_type.startswith('image/'):
                 raise HTTPException(400, "File must be an image")
 
-            # Default image model; prefer explicit deployment selector
             selected_model = (deployment or model or "mobilenet").lower()
             selected_task = task or "gender"
 
@@ -153,19 +122,16 @@ class Router:
             if selected_model in ("mobilenet", "mobile_net", "mobile"):
                 if self.mobilenet_classifier is None:
                     raise HTTPException(503, "MobileNet classifier not available")
-                # FIX: Sửa thành .predict.remote() để đồng nhất với endpoint chuyên biệt (nếu service có hàm predict)
                 return await self.mobilenet_classifier.predict.remote(image_bytes, selected_task)
 
             if selected_model in ("efficientnet_b0", "efficientnetb0", "effb0"):
                 if self.efficientnet_b0_classifier is None:
                     raise HTTPException(503, "EfficientNetB0 classifier not available")
-                # FIX: Sửa thành .predict.remote()
                 return await self.efficientnet_b0_classifier.predict.remote(image_bytes, selected_task)
 
             if selected_model in ("efficientnet_b4", "efficientnetb4", "effb4"):
                 if self.efficientnet_b4_classifier is None:
                     raise HTTPException(503, "EfficientNetB4 classifier not available")
-                # FIX: Sửa thành .predict.remote()
                 return await self.efficientnet_b4_classifier.predict.remote(image_bytes, selected_task)
 
             raise HTTPException(400, f"Unknown image model '{selected_model}'")
@@ -176,7 +142,6 @@ class Router:
         except Exception:
             raise HTTPException(400, "Invalid or missing request body")
 
-        # Prefer explicit deployment selector from query or body
         selected_model = deployment or model or body.get("deployment")
         if not selected_model:
             selected_model = "qwen" if "prompt" in body else ("embedding" if "text" in body else None)
@@ -210,26 +175,36 @@ class Router:
         raise HTTPException(400, f"Unknown model '{selected_model}'")
 
 
-def deploy() -> None:
-    """Deploy chỉ Router - các models được deploy từ service files riêng biệt"""
-    Router.deploy()
-def app(config: dict):
-    # Bind toàn bộ deployments để một lệnh có thể deploy tất cả
-    from qwen_service import QwenAPI
-    from embedding_service import EmbeddingAPI
-    from mobilenet_service import MobilenetClassifier
-    from efficientnetb0_service import EfficientNetB0Classifier
-    from efficientnetb4_service import EfficientNetB4Classifier
+def app(args: dict = None):
+    """
+    Entry point for serve run with config from YAML.
+    Args are passed from the 'args' section in the YAML config.
+    """
+    from src.embedding_service import EmbeddingAPI
+    from src.mobilenet_service import MobilenetClassifier
+    from src.efficientnetb0_service import EfficientNetB0Classifier
+    from src.efficientnetb4_service import EfficientNetB4Classifier
 
-    qwen = QwenAPI.bind()
-    embedding = EmbeddingAPI.bind()
-    mobilenet = MobilenetClassifier.bind()
-    eff_b0 = EfficientNetB0Classifier.bind()
-    eff_b4 = EfficientNetB4Classifier.bind()
+    # Get deployment configs from args
+    args = args or {}
+    deployments_config = args.get("deployments", {})
+    
+    # Apply config for each deployment
+    router_config = deployments_config.get("Router", {})
+    embedding_config = deployments_config.get("EmbeddingAPI", {})
+    mobilenet_config = deployments_config.get("MobilenetClassifier", {})
+    effb0_config = deployments_config.get("EfficientNetB0Classifier", {})
+    effb4_config = deployments_config.get("EfficientNetB4Classifier", {})
 
-    # Trả về DAG: Router nhận các handles để dùng ở /api/predict
-    return Router.bind(
-        qwen,
+    # Bind deployments with options from config
+    embedding = EmbeddingAPI.options(**embedding_config).bind()
+    mobilenet = MobilenetClassifier.options(**mobilenet_config).bind()
+    eff_b0 = EfficientNetB0Classifier.options(**effb0_config).bind()
+    eff_b4 = EfficientNetB4Classifier.options(**effb4_config).bind()
+
+    # Router with its own config
+    return Router.options(**router_config).bind(
+        None,  # qwen
         embedding,
         mobilenet,
         eff_b0,

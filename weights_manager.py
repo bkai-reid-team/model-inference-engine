@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-Weights Manager để download và manage weights từ Hugging Face
+Weights Manager to download and manage weights from Hugging Face
 """
 
 import os
@@ -23,14 +22,14 @@ class WeightsManager:
         os.makedirs(self.cache_dir, exist_ok=True)
         
     def get_available_weights(self) -> Dict[str, List[str]]:
-        """Get danh sách weights có sẵn từ Hugging Face repo"""
+        """Get list of available weights from the Hugging Face repo"""
         try:
             files = list_repo_files(self.repo_id)
             
-            # Filter cho classifier weights
+            # Filter for classifier weights
             classifier_files = [f for f in files if f.endswith("_classifier.pth")]
             
-            # Group theo model architecture
+            # Group by model architecture
             weights_by_model = {
                 "mobilenet": [],
                 "efficientnet_b0": [],
@@ -74,7 +73,7 @@ class WeightsManager:
             return None
     
     def download_all_weights(self, force_download: bool = False) -> Dict[str, Dict[str, str]]:
-        """Download tất cả weights"""
+        """Download all weights"""
         weights_info = self.get_available_weights()
         downloaded_weights = {}
         
@@ -88,9 +87,9 @@ class WeightsManager:
         return downloaded_weights
     
     def load_model_state_dict(self, model_type: str, task: str) -> Optional[Dict]:
-        """Load state dict từ weight file"""
+        """Load state dict from weight file"""
         try:
-            # Download nếu chưa có
+            # Download if not available
             weight_path = self.download_weight(model_type, task)
             if not weight_path:
                 return None
@@ -105,7 +104,7 @@ class WeightsManager:
             return None
     
     def get_weight_info(self) -> Dict[str, Dict[str, Dict]]:
-        """Get thông tin chi tiết về weights"""
+        """Get detailed information about weights"""
         weights_info = {}
         
         try:
